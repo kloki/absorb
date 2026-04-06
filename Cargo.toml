@@ -7,3 +7,9 @@ license = "MIT"
 repository = "https://github.com/kloki/absorb"
 
 [dependencies]
+ratatui = "0.30.0"
+clap = { version = "4", features = ["derive"] }
+
+[profile.dist]
+inherits = "release"
+lto = "thin"
