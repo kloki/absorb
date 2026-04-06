@@ -52,7 +52,8 @@ fn read_input(file: Option<PathBuf>) -> Option<String> {
     }
 }
 
-fn main() -> io::Result<()> {
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> io::Result<()> {
     let cli = Cli::parse();
 
     let text = match read_input(cli.file) {
@@ -75,7 +76,7 @@ fn main() -> io::Result<()> {
     let mut term = Terminal::new(CrosstermBackend::new(BufWriter::new(output)))?;
 
     let mut app = app::App::new(words, cli.wpm);
-    let result = app.run(&mut term);
+    let result = app.run(&mut term).await;
 
     disable_raw_mode()?;
     crossterm::execute!(

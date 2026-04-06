@@ -8,7 +8,10 @@ repository = "https://github.com/kloki/absorb"
 
 [dependencies]
 ratatui = "0.30.0"
+crossterm = { version = "0.29.0", features = ["event-stream"] }
 clap = { version = "4", features = ["derive"] }
+tokio = { version = "1", features = ["rt", "macros", "time"] }
+futures = "0.3"
 
 [profile.dist]
 inherits = "release"
