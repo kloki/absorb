@@ -31,4 +31,7 @@ cat article.md | absorb
 
 # Set speed to 400 words per minute
 absorb -w 400 document.txt
+
+# See options
+absorb --help
 ```
