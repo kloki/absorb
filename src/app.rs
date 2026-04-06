@@ -3,11 +3,11 @@ use std::{
     time::{Duration, Instant},
 };
 
-use crossterm::event::{Event, EventStream, KeyCode, KeyEventKind};
+use crossterm::event::{Event, EventStream, KeyCode, KeyEventKind, MouseButton, MouseEventKind};
 use futures::StreamExt;
-use ratatui::{Terminal, backend::Backend, style::Color};
+use ratatui::{Terminal, backend::Backend, layout::Rect, style::Color};
 
-use crate::display::{self, ViewState};
+use crate::display::{self, DrawResult, ViewState, WordMap};
 
 const EASEIN_WORDS: usize = 10;
 const FREEZE: Duration = Duration::from_secs(1);
@@ -27,6 +27,9 @@ pub struct App {
     frozen_until: Instant,
     split_view: bool,
     highlight: Color,
+    scroll_offset: Option<usize>,
+    word_map: WordMap,
+    text_pane: Option<Rect>,
 }
 
 impl App {
@@ -42,6 +45,9 @@ impl App {
             frozen_until: now + FREEZE,
             split_view: false,
             highlight,
+            scroll_offset: None,
+            word_map: WordMap::default(),
+            text_pane: None,
         }
     }
 
@@ -83,8 +89,18 @@ impl App {
                 playing: self.playing,
                 split_view: self.split_view,
                 highlight: self.highlight,
+                scroll_offset: self.scroll_offset,
             };
-            term.draw(|f| display::draw(f, &state))?;
+            let mut draw_result = DrawResult::default();
+            term.draw(|f| {
+                draw_result = display::draw(f, &state);
+            })?;
+            self.word_map = draw_result.word_map;
+            self.text_pane = draw_result.text_pane;
+            // Keep scroll in sync when auto-scrolling
+            if self.scroll_offset.is_none() && draw_result.text_pane.is_some() {
+                self.scroll_offset = None;
+            }
 
             let tick = tokio::time::sleep(self.tick_duration());
 
@@ -104,21 +120,58 @@ impl App {
     }
 
     fn handle_event(&mut self, event: Event) -> Action {
-        if let Event::Key(key) = event {
-            if key.kind != KeyEventKind::Press {
-                return Action::Continue;
+        match event {
+            Event::Key(key) => {
+                if key.kind != KeyEventKind::Press {
+                    return Action::Continue;
+                }
+                match key.code {
+                    KeyCode::Char('q') | KeyCode::Esc => return Action::Quit,
+                    KeyCode::Char(' ') => self.toggle_play(),
+                    KeyCode::Left | KeyCode::Char('h') => self.retreat(),
+                    KeyCode::Right | KeyCode::Char('l') => self.step_forward(),
+                    KeyCode::Up | KeyCode::Char('k') => self.increase_speed(),
+                    KeyCode::Down | KeyCode::Char('j') => self.decrease_speed(),
+                    KeyCode::Char('r') => self.restart(),
+                    KeyCode::Char('v') => self.split_view = !self.split_view,
+                    _ => {}
+                }
             }
-            match key.code {
-                KeyCode::Char('q') | KeyCode::Esc => return Action::Quit,
-                KeyCode::Char(' ') => self.toggle_play(),
-                KeyCode::Left | KeyCode::Char('h') => self.retreat(),
-                KeyCode::Right | KeyCode::Char('l') => self.step_forward(),
-                KeyCode::Up | KeyCode::Char('k') => self.increase_speed(),
-                KeyCode::Down | KeyCode::Char('j') => self.decrease_speed(),
-                KeyCode::Char('r') => self.restart(),
-                KeyCode::Char('v') => self.split_view = !self.split_view,
-                _ => {}
+            Event::Mouse(mouse) if self.split_view => {
+                if let Some(pane) = self.text_pane {
+                    let in_pane = mouse.column >= pane.x
+                        && mouse.column < pane.x + pane.width
+                        && mouse.row >= pane.y
+                        && mouse.row < pane.y + pane.height;
+
+                    if in_pane {
+                        match mouse.kind {
+                            MouseEventKind::ScrollUp => {
+                                let offset = self.scroll_offset.unwrap_or(0);
+                                self.scroll_offset = Some(offset.saturating_sub(3));
+                            }
+                            MouseEventKind::ScrollDown => {
+                                let offset = self.scroll_offset.unwrap_or(0);
+                                self.scroll_offset = Some(offset + 3);
+                            }
+                            MouseEventKind::Down(MouseButton::Left) => {
+                                let rel_col = mouse.column - pane.x;
+                                let rel_row = mouse.row - pane.y;
+                                let scroll = self.scroll_offset.unwrap_or(0);
+                                let abs_line = scroll + rel_row as usize;
+
+                                if let Some(idx) = self.word_map.hit_test(abs_line, rel_col) {
+                                    self.current = idx;
+                                    self.playing = false;
+                                    self.scroll_offset = None;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
             }
+            _ => {}
         }
         Action::Continue
     }
@@ -137,6 +190,7 @@ impl App {
         if self.current < self.words.len() {
             self.current += 1;
             self.last_advance = Instant::now();
+            self.scroll_offset = None;
         }
         if self.current >= self.words.len() {
             self.playing = false;
@@ -188,6 +242,9 @@ mod tests {
             frozen_until: now,
             split_view: false,
             highlight: Color::Red,
+            scroll_offset: None,
+            word_map: WordMap::default(),
+            text_pane: None,
         }
     }
 
