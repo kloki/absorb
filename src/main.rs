@@ -75,7 +75,7 @@ async fn main() -> io::Result<()> {
     crossterm::execute!(output, EnterAlternateScreen, EnableMouseCapture)?;
     let mut term = Terminal::new(CrosstermBackend::new(BufWriter::new(output)))?;
 
-    let mut app = app::App::new(words, cli.wpm);
+    let mut app = app::App::new(words, text, cli.wpm);
     let result = app.run(&mut term).await;
 
     disable_raw_mode()?;

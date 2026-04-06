@@ -1,6 +1,6 @@
 use ratatui::{
     Frame,
-    layout::{Constraint, Layout},
+    layout::{Constraint, Layout, Rect},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{LineGauge, Paragraph},
@@ -11,16 +11,47 @@ fn orp_index(word: &str) -> usize {
     if len <= 1 { 0 } else { (len - 1) / 4 + 1 }
 }
 
-pub fn draw(frame: &mut Frame, words: &[String], current: usize, wpm: u32, playing: bool) {
+pub fn draw(
+    frame: &mut Frame,
+    words: &[String],
+    text: &str,
+    current: usize,
+    wpm: u32,
+    playing: bool,
+    split_view: bool,
+) {
     let area = frame.area();
 
+    let outer = Layout::vertical([
+        Constraint::Fill(1),
+        Constraint::Length(1),
+        Constraint::Length(1),
+    ])
+    .split(area);
+
+    if split_view {
+        let cols = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(outer[0]);
+        draw_word_pane(frame, cols[0], words, current);
+        let tv = text_view(text, current, cols[1].height);
+        frame.render_widget(tv, cols[1]);
+    } else {
+        draw_word_pane(frame, outer[0], words, current);
+    }
+
+    frame.render_widget(progress(current, words.len()), outer[1]);
+
+    let footer = Layout::horizontal([Constraint::Fill(1), Constraint::Fill(1)]).split(outer[2]);
+    frame.render_widget(controls(), footer[0]);
+    frame.render_widget(status(current, words.len(), wpm, playing), footer[1]);
+}
+
+fn draw_word_pane(frame: &mut Frame, area: Rect, words: &[String], current: usize) {
     let layout = Layout::vertical([
         Constraint::Length(3),
         Constraint::Fill(1),
         Constraint::Length(1),
         Constraint::Fill(1),
-        Constraint::Length(1),
-        Constraint::Length(1),
     ])
     .split(area);
 
@@ -31,12 +62,55 @@ pub fn draw(frame: &mut Frame, words: &[String], current: usize, wpm: u32, playi
     } else {
         frame.render_widget(end(), layout[2]);
     }
+}
 
-    frame.render_widget(progress(current, words.len()), layout[4]);
+fn text_view(text: &str, current: usize, height: u16) -> Paragraph<'static> {
+    let mut word_index = 0;
+    let mut current_line_index = 0;
+    let mut lines: Vec<Line<'static>> = Vec::new();
 
-    let footer = Layout::horizontal([Constraint::Fill(1), Constraint::Fill(1)]).split(layout[5]);
-    frame.render_widget(controls(), footer[0]);
-    frame.render_widget(status(current, words.len(), wpm, playing), footer[1]);
+    for (line_num, text_line) in text.lines().enumerate() {
+        let mut spans: Vec<Span<'static>> = Vec::new();
+        let mut col = 0;
+
+        for token in text_line.split_whitespace() {
+            if let Some(pos) = text_line[col..].find(token) {
+                let leading = &text_line[col..col + pos];
+                if !leading.is_empty() {
+                    spans.push(Span::styled(
+                        leading.to_string(),
+                        Style::default().fg(Color::DarkGray),
+                    ));
+                }
+                col += pos + token.len();
+            }
+
+            if word_index == current {
+                current_line_index = line_num;
+                spans.push(Span::styled(
+                    token.to_string(),
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                ));
+            } else {
+                spans.push(Span::styled(
+                    token.to_string(),
+                    Style::default().fg(Color::White),
+                ));
+            }
+            word_index += 1;
+        }
+
+        // Preserve any trailing whitespace
+        if col < text_line.len() {
+            spans.push(Span::raw(text_line[col..].to_string()));
+        }
+
+        lines.push(Line::from(spans));
+    }
+
+    let scroll = current_line_index.saturating_sub(height as usize / 2);
+
+    Paragraph::new(lines).scroll((scroll as u16, 0))
 }
 
 fn word<'a>(width: u16, w: &str) -> Paragraph<'a> {
@@ -82,7 +156,7 @@ fn progress(current: usize, total: usize) -> LineGauge<'static> {
 }
 
 fn controls() -> Paragraph<'static> {
-    Paragraph::new("SPACE play/pause | \u{2190}\u{2192} navigate | \u{2191}\u{2193} speed | r restart | q quit")
+    Paragraph::new("SPACE play/pause | \u{2190}\u{2192} navigate | \u{2191}\u{2193} speed | v split-view | r restart | q quit")
         .style(Style::default().fg(Color::White))
 }
 

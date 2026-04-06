@@ -19,23 +19,27 @@ enum Action {
 
 pub struct App {
     words: Vec<String>,
+    text: String,
     current: usize,
     playing: bool,
     target_wpm: u32,
     last_advance: Instant,
     frozen_until: Instant,
+    split_view: bool,
 }
 
 impl App {
-    pub fn new(words: Vec<String>, wpm: u32) -> Self {
+    pub fn new(words: Vec<String>, text: String, wpm: u32) -> Self {
         let now = Instant::now();
         Self {
             words,
+            text,
             current: 0,
             playing: true,
             target_wpm: wpm,
             last_advance: now + FREEZE,
             frozen_until: now + FREEZE,
+            split_view: false,
         }
     }
 
@@ -71,7 +75,15 @@ impl App {
         loop {
             let wpm = self.effective_wpm();
             term.draw(|f| {
-                display::draw(f, &self.words, self.current, wpm, self.playing);
+                display::draw(
+                    f,
+                    &self.words,
+                    &self.text,
+                    self.current,
+                    wpm,
+                    self.playing,
+                    self.split_view,
+                );
             })?;
 
             let tick = tokio::time::sleep(self.tick_duration());
@@ -104,6 +116,7 @@ impl App {
                 KeyCode::Up | KeyCode::Char('k') => self.increase_speed(),
                 KeyCode::Down | KeyCode::Char('j') => self.decrease_speed(),
                 KeyCode::Char('r') => self.restart(),
+                KeyCode::Char('v') => self.split_view = !self.split_view,
                 _ => {}
             }
         }
@@ -167,11 +180,13 @@ mod tests {
         let now = Instant::now();
         App {
             words: vec!["a".into(); 20],
+            text: "a ".repeat(20).trim().to_string(),
             current,
             playing,
             target_wpm: wpm,
             last_advance: now,
             frozen_until: now,
+            split_view: false,
         }
     }
 
