@@ -2,5 +2,8 @@
 name = "absorb"
 version = "0.1.0"
 edition = "2024"
+description = "A cli tool to absorb text quickly"
+license = "MIT"
+repository = "https://github.com/kloki/absorb"
 
 [dependencies]
