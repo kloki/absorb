@@ -57,7 +57,7 @@ pub fn draw(frame: &mut Frame, state: &ViewState) -> DrawResult {
         let cols = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(outer[0]);
         draw_word_pane(frame, cols[0], words, current, highlight);
-        let (tv, word_map, scroll) =
+        let (tv, word_map, scroll, _) =
             text_view::text_view(text, current, cols[1].height, highlight, scroll_offset);
         frame.render_widget(tv, cols[1]);
         result.text_pane = Some(cols[1]);

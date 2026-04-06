@@ -26,7 +26,7 @@ pub fn text_view(
     height: u16,
     highlight: Color,
     scroll_offset: Option<usize>,
-) -> (Paragraph<'static>, WordMap, usize) {
+) -> (Paragraph<'static>, WordMap, usize, usize) {
     let mut word_index = 0;
     let mut current_line_index = 0;
     let mut lines: Vec<Line<'static>> = Vec::new();
@@ -79,8 +79,9 @@ pub fn text_view(
     let scroll =
         scroll_offset.unwrap_or_else(|| current_line_index.saturating_sub(height as usize / 2));
 
+    let total_lines = lines.len();
     let paragraph = Paragraph::new(lines).scroll((scroll as u16, 0));
-    (paragraph, word_map, scroll)
+    (paragraph, word_map, scroll, total_lines)
 }
 
 #[cfg(test)]
@@ -113,7 +114,7 @@ mod tests {
     #[test]
     fn text_view_builds_word_map() {
         let text = "hello world\nfoo bar";
-        let (_, map, _) = text_view(text, 0, 20, Color::Red, None);
+        let (_, map, _, _) = text_view(text, 0, 20, Color::Red, None);
 
         assert_eq!(map.hit_test(0, 0), Some(0));
         assert_eq!(map.hit_test(0, 4), Some(0));
@@ -127,14 +128,14 @@ mod tests {
     fn text_view_scroll_follows_current() {
         let lines: Vec<String> = (0..50).map(|i| format!("word{}", i)).collect();
         let text = lines.join("\n");
-        let (_, _, scroll) = text_view(&text, 30, 10, Color::Red, None);
+        let (_, _, scroll, _) = text_view(&text, 30, 10, Color::Red, None);
         assert_eq!(scroll, 25);
     }
 
     #[test]
     fn text_view_manual_scroll_overrides() {
         let text = "hello world\nfoo bar";
-        let (_, _, scroll) = text_view(text, 0, 20, Color::Red, Some(5));
+        let (_, _, scroll, _) = text_view(text, 0, 20, Color::Red, Some(5));
         assert_eq!(scroll, 5);
     }
 }

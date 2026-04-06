@@ -28,6 +28,7 @@ pub struct App {
     split_view: bool,
     highlight: Color,
     scroll_offset: Option<usize>,
+    last_scroll: usize,
     word_map: WordMap,
     text_pane: Option<Rect>,
 }
@@ -46,6 +47,7 @@ impl App {
             split_view: false,
             highlight,
             scroll_offset: None,
+            last_scroll: 0,
             word_map: WordMap::default(),
             text_pane: None,
         }
@@ -97,10 +99,7 @@ impl App {
             })?;
             self.word_map = draw_result.word_map;
             self.text_pane = draw_result.text_pane;
-            // Keep scroll in sync when auto-scrolling
-            if self.scroll_offset.is_none() && draw_result.text_pane.is_some() {
-                self.scroll_offset = None;
-            }
+            self.last_scroll = draw_result.scroll;
 
             let tick = tokio::time::sleep(self.tick_duration());
 
@@ -147,17 +146,17 @@ impl App {
                     if in_pane {
                         match mouse.kind {
                             MouseEventKind::ScrollUp => {
-                                let offset = self.scroll_offset.unwrap_or(0);
+                                let offset = self.scroll_offset.unwrap_or(self.last_scroll);
                                 self.scroll_offset = Some(offset.saturating_sub(3));
                             }
                             MouseEventKind::ScrollDown => {
-                                let offset = self.scroll_offset.unwrap_or(0);
+                                let offset = self.scroll_offset.unwrap_or(self.last_scroll);
                                 self.scroll_offset = Some(offset + 3);
                             }
                             MouseEventKind::Down(MouseButton::Left) => {
                                 let rel_col = mouse.column - pane.x;
                                 let rel_row = mouse.row - pane.y;
-                                let scroll = self.scroll_offset.unwrap_or(0);
+                                let scroll = self.scroll_offset.unwrap_or(self.last_scroll);
                                 let abs_line = scroll + rel_row as usize;
 
                                 if let Some(idx) = self.word_map.hit_test(abs_line, rel_col) {
@@ -210,7 +209,7 @@ impl App {
     }
 
     fn increase_speed(&mut self) {
-        self.target_wpm = (self.target_wpm + 25).min(1000);
+        self.target_wpm = (self.target_wpm + 25).min(2000);
     }
 
     fn decrease_speed(&mut self) {
@@ -243,6 +242,7 @@ mod tests {
             split_view: false,
             highlight: Color::Red,
             scroll_offset: None,
+            last_scroll: 0,
             word_map: WordMap::default(),
             text_pane: None,
         }
