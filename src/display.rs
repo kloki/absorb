@@ -19,6 +19,7 @@ pub fn draw(
     wpm: u32,
     playing: bool,
     split_view: bool,
+    highlight: Color,
 ) {
     let area = frame.area();
 
@@ -32,11 +33,11 @@ pub fn draw(
     if split_view {
         let cols = Layout::horizontal([Constraint::Percentage(50), Constraint::Percentage(50)])
             .split(outer[0]);
-        draw_word_pane(frame, cols[0], words, current);
-        let tv = text_view(text, current, cols[1].height);
+        draw_word_pane(frame, cols[0], words, current, highlight);
+        let tv = text_view(text, current, cols[1].height, highlight);
         frame.render_widget(tv, cols[1]);
     } else {
-        draw_word_pane(frame, outer[0], words, current);
+        draw_word_pane(frame, outer[0], words, current, highlight);
     }
 
     frame.render_widget(progress(current, words.len()), outer[1]);
@@ -46,7 +47,13 @@ pub fn draw(
     frame.render_widget(status(current, words.len(), wpm, playing), footer[1]);
 }
 
-fn draw_word_pane(frame: &mut Frame, area: Rect, words: &[String], current: usize) {
+fn draw_word_pane(
+    frame: &mut Frame,
+    area: Rect,
+    words: &[String],
+    current: usize,
+    highlight: Color,
+) {
     let layout = Layout::vertical([
         Constraint::Length(3),
         Constraint::Fill(1),
@@ -58,13 +65,13 @@ fn draw_word_pane(frame: &mut Frame, area: Rect, words: &[String], current: usiz
     frame.render_widget(crate::banners::header(), layout[0]);
 
     if current < words.len() {
-        frame.render_widget(word(area.width, &words[current]), layout[2]);
+        frame.render_widget(word(area.width, &words[current], highlight), layout[2]);
     } else {
         frame.render_widget(end(), layout[2]);
     }
 }
 
-fn text_view(text: &str, current: usize, height: u16) -> Paragraph<'static> {
+fn text_view(text: &str, current: usize, height: u16, highlight: Color) -> Paragraph<'static> {
     let mut word_index = 0;
     let mut current_line_index = 0;
     let mut lines: Vec<Line<'static>> = Vec::new();
@@ -89,7 +96,7 @@ fn text_view(text: &str, current: usize, height: u16) -> Paragraph<'static> {
                 current_line_index = line_num;
                 spans.push(Span::styled(
                     token.to_string(),
-                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+                    Style::default().fg(highlight).add_modifier(Modifier::BOLD),
                 ));
             } else {
                 spans.push(Span::styled(
@@ -113,7 +120,7 @@ fn text_view(text: &str, current: usize, height: u16) -> Paragraph<'static> {
     Paragraph::new(lines).scroll((scroll as u16, 0))
 }
 
-fn word<'a>(width: u16, w: &str) -> Paragraph<'a> {
+fn word<'a>(width: u16, w: &str, highlight: Color) -> Paragraph<'a> {
     let orp = orp_index(w);
     let center = width as usize / 2;
     let padding = center.saturating_sub(orp);
@@ -128,7 +135,7 @@ fn word<'a>(width: u16, w: &str) -> Paragraph<'a> {
         Span::styled(before, Style::default().fg(Color::White)),
         Span::styled(
             focus,
-            Style::default().fg(Color::Red).add_modifier(Modifier::BOLD),
+            Style::default().fg(highlight).add_modifier(Modifier::BOLD),
         ),
         Span::styled(after, Style::default().fg(Color::White)),
     ]);
@@ -236,7 +243,7 @@ mod tests {
 
     #[test]
     fn word_orp_at_center() {
-        let rendered = render_to_string(word(20, "hello"), 20, 1);
+        let rendered = render_to_string(word(20, "hello", Color::Red), 20, 1);
         // ORP index for "hello" (len 5) is 2 ('l'), should be at column 10 (width/2)
         assert_eq!(rendered.chars().nth(10).unwrap(), 'l');
         assert!(rendered.trim().eq("hello"));
@@ -244,7 +251,7 @@ mod tests {
 
     #[test]
     fn word_single_char_at_center() {
-        let rendered = render_to_string(word(20, "I"), 20, 1);
+        let rendered = render_to_string(word(20, "I", Color::Red), 20, 1);
         assert_eq!(rendered.chars().nth(10).unwrap(), 'I');
     }
 

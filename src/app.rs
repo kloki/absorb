@@ -5,7 +5,7 @@ use std::{
 
 use crossterm::event::{Event, EventStream, KeyCode, KeyEventKind};
 use futures::StreamExt;
-use ratatui::{Terminal, backend::Backend};
+use ratatui::{Terminal, backend::Backend, style::Color};
 
 use crate::display;
 
@@ -26,10 +26,11 @@ pub struct App {
     last_advance: Instant,
     frozen_until: Instant,
     split_view: bool,
+    highlight: Color,
 }
 
 impl App {
-    pub fn new(words: Vec<String>, text: String, wpm: u32) -> Self {
+    pub fn new(words: Vec<String>, text: String, wpm: u32, highlight: Color) -> Self {
         let now = Instant::now();
         Self {
             words,
@@ -40,6 +41,7 @@ impl App {
             last_advance: now + FREEZE,
             frozen_until: now + FREEZE,
             split_view: false,
+            highlight,
         }
     }
 
@@ -83,6 +85,7 @@ impl App {
                     wpm,
                     self.playing,
                     self.split_view,
+                    self.highlight,
                 );
             })?;
 
@@ -187,6 +190,7 @@ mod tests {
             last_advance: now,
             frozen_until: now,
             split_view: false,
+            highlight: Color::Red,
         }
     }
 

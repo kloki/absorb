@@ -14,6 +14,7 @@ use ratatui::{
         event::{DisableMouseCapture, EnableMouseCapture},
         terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
     },
+    style::Color,
 };
 
 mod app;
@@ -32,6 +33,27 @@ struct Cli {
     /// Words per minute
     #[arg(short, long, default_value_t = 600)]
     wpm: u32,
+
+    /// Highlight color (red, green, yellow, blue, magenta, cyan, white)
+    #[arg(short, long, default_value = "red")]
+    color: String,
+}
+
+fn parse_color(s: &str) -> Color {
+    match s.to_lowercase().as_str() {
+        "black" => Color::Black,
+        "red" => Color::Red,
+        "green" => Color::Green,
+        "yellow" => Color::Yellow,
+        "blue" => Color::Blue,
+        "magenta" => Color::Magenta,
+        "cyan" => Color::Cyan,
+        "white" => Color::White,
+        _ => {
+            eprintln!("Unknown color '{}'. Using red.", s);
+            Color::Red
+        }
+    }
 }
 
 fn read_input(file: Option<PathBuf>) -> Option<String> {
@@ -75,7 +97,8 @@ async fn main() -> io::Result<()> {
     crossterm::execute!(output, EnterAlternateScreen, EnableMouseCapture)?;
     let mut term = Terminal::new(CrosstermBackend::new(BufWriter::new(output)))?;
 
-    let mut app = app::App::new(words, text, cli.wpm);
+    let highlight = parse_color(&cli.color);
+    let mut app = app::App::new(words, text, cli.wpm, highlight);
     let result = app.run(&mut term).await;
 
     disable_raw_mode()?;
