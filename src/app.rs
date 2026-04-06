@@ -31,6 +31,8 @@ pub struct App {
     last_scroll: usize,
     word_map: WordMap,
     text_pane: Option<Rect>,
+    show_help: bool,
+    was_playing: Option<bool>,
 }
 
 impl App {
@@ -50,6 +52,8 @@ impl App {
             last_scroll: 0,
             word_map: WordMap::default(),
             text_pane: None,
+            show_help: false,
+            was_playing: None,
         }
     }
 
@@ -92,6 +96,7 @@ impl App {
                 split_view: self.split_view,
                 highlight: self.highlight,
                 scroll_offset: self.scroll_offset,
+                show_help: self.show_help,
             };
             let mut draw_result = DrawResult::default();
             term.draw(|f| {
@@ -124,15 +129,30 @@ impl App {
                 if key.kind != KeyEventKind::Press {
                     return Action::Continue;
                 }
+                if self.show_help {
+                    self.show_help = false;
+                    if let Some(was) = self.was_playing.take() {
+                        self.playing = was;
+                        if self.playing {
+                            self.last_advance = Instant::now();
+                        }
+                    }
+                    return Action::Continue;
+                }
                 match key.code {
                     KeyCode::Char('q') | KeyCode::Esc => return Action::Quit,
                     KeyCode::Char(' ') => self.toggle_play(),
-                    KeyCode::Left | KeyCode::Char('h') => self.retreat(),
-                    KeyCode::Right | KeyCode::Char('l') => self.step_forward(),
-                    KeyCode::Up | KeyCode::Char('k') => self.increase_speed(),
-                    KeyCode::Down | KeyCode::Char('j') => self.decrease_speed(),
+                    KeyCode::Left => self.retreat(),
+                    KeyCode::Right => self.step_forward(),
+                    KeyCode::Up => self.increase_speed(),
+                    KeyCode::Down => self.decrease_speed(),
                     KeyCode::Char('r') => self.restart(),
                     KeyCode::Char('v') => self.split_view = !self.split_view,
+                    KeyCode::Char('h') => {
+                        self.was_playing = Some(self.playing);
+                        self.playing = false;
+                        self.show_help = true;
+                    }
                     _ => {}
                 }
             }
@@ -245,6 +265,8 @@ mod tests {
             last_scroll: 0,
             word_map: WordMap::default(),
             text_pane: None,
+            show_help: false,
+            was_playing: None,
         }
     }
 

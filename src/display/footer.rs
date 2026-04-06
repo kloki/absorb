@@ -17,14 +17,13 @@ pub fn progress(current: usize, total: usize) -> LineGauge<'static> {
 }
 
 pub fn controls() -> Paragraph<'static> {
-    Paragraph::new("SPACE play/pause | \u{2190}\u{2192} navigate | \u{2191}\u{2193} speed | v split-view | r restart | q quit")
-        .style(Style::default().fg(Color::White))
+    Paragraph::new("(r)estart | (q)uit | (h)elp").style(Style::default().fg(Color::White))
 }
 
 pub fn status(current: usize, total: usize, wpm: u32, playing: bool) -> Paragraph<'static> {
-    let state = if playing { "PLAYING" } else { "PAUSED" };
+    let state = if playing { "" } else { "[PAUSED]" };
     let pos = current.min(total);
-    let text = format!("{} WPM | {}/{} | {}", wpm, pos, total, state);
+    let text = format!("{} {} WPM | {}/{}", state, wpm, pos, total);
     Paragraph::new(text)
         .right_aligned()
         .style(Style::default().fg(Color::White))
@@ -47,7 +46,6 @@ mod tests {
         let rendered = render_to_string(status(5, 10, 300, true), 40, 1);
         assert!(rendered.contains("300 WPM"));
         assert!(rendered.contains("5/10"));
-        assert!(rendered.contains("PLAYING"));
     }
 
     #[test]

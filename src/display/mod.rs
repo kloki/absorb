@@ -1,4 +1,5 @@
 mod footer;
+mod help;
 mod text_view;
 mod word;
 
@@ -6,6 +7,7 @@ use ratatui::{
     Frame,
     layout::{Constraint, Layout, Rect},
     style::Color,
+    widgets::Clear,
 };
 pub use text_view::WordMap;
 
@@ -18,6 +20,7 @@ pub struct ViewState<'a> {
     pub split_view: bool,
     pub highlight: Color,
     pub scroll_offset: Option<usize>,
+    pub show_help: bool,
 }
 
 #[derive(Default)]
@@ -37,6 +40,7 @@ pub fn draw(frame: &mut Frame, state: &ViewState) -> DrawResult {
         split_view,
         highlight,
         scroll_offset,
+        show_help,
     } = *state;
     let area = frame.area();
 
@@ -76,6 +80,12 @@ pub fn draw(frame: &mut Frame, state: &ViewState) -> DrawResult {
         footer::status(current, words.len(), wpm, playing),
         footer_layout[1],
     );
+
+    if show_help {
+        let popup_area = help::centered_rect(60, 18, area);
+        frame.render_widget(Clear, popup_area);
+        frame.render_widget(help::help_popup(), popup_area);
+    }
 
     result
 }
