@@ -5,7 +5,7 @@ use std::{
     process,
 };
 
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use ratatui::{
     Terminal,
     backend::CrosstermBackend,
@@ -31,27 +31,37 @@ struct Cli {
     file: Option<PathBuf>,
 
     /// Words per minute
-    #[arg(short, long, default_value_t = 600)]
+    #[arg(short, long, default_value_t = 600, value_parser = clap::value_parser!(u32).range(50..=2000))]
     wpm: u32,
 
-    /// Highlight color (red, green, yellow, blue, magenta, cyan, white)
-    #[arg(short, long, default_value = "red")]
-    color: String,
+    /// Highlight color
+    #[arg(short, long, value_enum, default_value_t = HighlightColor::Red)]
+    color: HighlightColor,
 }
 
-fn parse_color(s: &str) -> Color {
-    match s.to_lowercase().as_str() {
-        "black" => Color::Black,
-        "red" => Color::Red,
-        "green" => Color::Green,
-        "yellow" => Color::Yellow,
-        "blue" => Color::Blue,
-        "magenta" => Color::Magenta,
-        "cyan" => Color::Cyan,
-        "white" => Color::White,
-        _ => {
-            eprintln!("Unknown color '{}'. Using red.", s);
-            Color::Red
+#[derive(Clone, ValueEnum)]
+enum HighlightColor {
+    Black,
+    Red,
+    Green,
+    Yellow,
+    Blue,
+    Magenta,
+    Cyan,
+    White,
+}
+
+impl From<HighlightColor> for Color {
+    fn from(c: HighlightColor) -> Color {
+        match c {
+            HighlightColor::Black => Color::Black,
+            HighlightColor::Red => Color::Red,
+            HighlightColor::Green => Color::Green,
+            HighlightColor::Yellow => Color::Yellow,
+            HighlightColor::Blue => Color::Blue,
+            HighlightColor::Magenta => Color::Magenta,
+            HighlightColor::Cyan => Color::Cyan,
+            HighlightColor::White => Color::White,
         }
     }
 }
@@ -92,12 +102,19 @@ async fn main() -> io::Result<()> {
         process::exit(1);
     }
 
+    let original_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        let _ = disable_raw_mode();
+        let _ = crossterm::execute!(io::stdout(), LeaveAlternateScreen, DisableMouseCapture);
+        original_hook(info);
+    }));
+
     let mut output = io::stdout().lock();
     enable_raw_mode()?;
     crossterm::execute!(output, EnterAlternateScreen, EnableMouseCapture)?;
     let mut term = Terminal::new(CrosstermBackend::new(BufWriter::new(output)))?;
 
-    let highlight = parse_color(&cli.color);
+    let highlight: Color = cli.color.into();
     let mut app = app::App::new(words, text, cli.wpm, highlight);
     let result = app.run(&mut term).await;
 

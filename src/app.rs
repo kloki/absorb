@@ -7,7 +7,7 @@ use crossterm::event::{Event, EventStream, KeyCode, KeyEventKind};
 use futures::StreamExt;
 use ratatui::{Terminal, backend::Backend, style::Color};
 
-use crate::display;
+use crate::display::{self, ViewState};
 
 const EASEIN_WORDS: usize = 10;
 const FREEZE: Duration = Duration::from_secs(1);
@@ -75,19 +75,16 @@ impl App {
         let mut reader = EventStream::new();
 
         loop {
-            let wpm = self.effective_wpm();
-            term.draw(|f| {
-                display::draw(
-                    f,
-                    &self.words,
-                    &self.text,
-                    self.current,
-                    wpm,
-                    self.playing,
-                    self.split_view,
-                    self.highlight,
-                );
-            })?;
+            let state = ViewState {
+                words: &self.words,
+                text: &self.text,
+                current: self.current,
+                wpm: self.effective_wpm(),
+                playing: self.playing,
+                split_view: self.split_view,
+                highlight: self.highlight,
+            };
+            term.draw(|f| display::draw(f, &state))?;
 
             let tick = tokio::time::sleep(self.tick_duration());
 

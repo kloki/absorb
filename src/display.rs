@@ -6,21 +6,31 @@ use ratatui::{
     widgets::{LineGauge, Paragraph},
 };
 
+pub struct ViewState<'a> {
+    pub words: &'a [String],
+    pub text: &'a str,
+    pub current: usize,
+    pub wpm: u32,
+    pub playing: bool,
+    pub split_view: bool,
+    pub highlight: Color,
+}
+
 fn orp_index(word: &str) -> usize {
     let len = word.chars().count();
     if len <= 1 { 0 } else { (len - 1) / 4 + 1 }
 }
 
-pub fn draw(
-    frame: &mut Frame,
-    words: &[String],
-    text: &str,
-    current: usize,
-    wpm: u32,
-    playing: bool,
-    split_view: bool,
-    highlight: Color,
-) {
+pub fn draw(frame: &mut Frame, state: &ViewState) {
+    let ViewState {
+        words,
+        text,
+        current,
+        wpm,
+        playing,
+        split_view,
+        highlight,
+    } = *state;
     let area = frame.area();
 
     let outer = Layout::vertical([
