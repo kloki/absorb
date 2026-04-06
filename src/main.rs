@@ -31,7 +31,7 @@ struct Cli {
     file: Option<PathBuf>,
 
     /// Words per minute
-    #[arg(short, long, default_value_t = 750, value_parser = clap::value_parser!(u32).range(50..=2000))]
+    #[arg(short, long, default_value_t = 600, value_parser = clap::value_parser!(u32).range(50..=2000))]
     wpm: u32,
 
     /// Highlight color
