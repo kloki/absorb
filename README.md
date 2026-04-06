@@ -1,3 +1,5 @@
+![Example](./example.png)
+
 # absorb
 
 A terminal speed reader using [RSVP](https://en.wikipedia.org/wiki/Rapid_serial_visual_presentation) (Rapid Serial Visual Presentation). Feed it any text file and absorb the content word-by-word at your chosen pace.
@@ -10,8 +12,12 @@ The reading speed eases in gradually over the first 10 words, starting at one th
 
 ## Install
 
+### Binaries
+
+Check [Releases](https://github.com/kloki/absorb/releases) for binaries and installers
+
 ```bash
-cargo install absorb
+cargo install absorb --locked
 ```
 
 ## Usage
