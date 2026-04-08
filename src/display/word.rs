@@ -3,6 +3,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::Paragraph,
 };
+use tui_big_text::{BigText, PixelSize};
 
 pub fn orp_index(word: &str) -> usize {
     let len = word.chars().count();
@@ -30,6 +31,28 @@ pub fn word<'a>(width: u16, w: &str, highlight: Color) -> Paragraph<'a> {
     ]);
 
     Paragraph::new(line)
+}
+
+pub fn big_word<'a>(w: &str, highlight: Color) -> BigText<'a> {
+    let orp = orp_index(w);
+    let chars: Vec<char> = w.chars().collect();
+    let before: String = chars[..orp].iter().collect();
+    let focus: String = chars[orp..orp + 1].iter().collect();
+    let after: String = chars[orp + 1..].iter().collect();
+
+    let line = Line::from(vec![
+        Span::styled(before, Style::default().fg(Color::White)),
+        Span::styled(
+            focus,
+            Style::default().fg(highlight).add_modifier(Modifier::BOLD),
+        ),
+        Span::styled(after, Style::default().fg(Color::White)),
+    ]);
+
+    BigText::builder()
+        .pixel_size(PixelSize::HalfHeight)
+        .lines(vec![line])
+        .build()
 }
 
 pub fn end() -> Paragraph<'static> {

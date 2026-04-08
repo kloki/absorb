@@ -32,10 +32,17 @@ pub struct App {
     show_help: bool,
     was_playing: Option<bool>,
     words_since_resume: usize,
+    big_text: bool,
 }
 
 impl App {
-    pub fn new(words: Vec<String>, text: String, wpm: u32, highlight: Color) -> Self {
+    pub fn new(
+        words: Vec<String>,
+        text: String,
+        wpm: u32,
+        highlight: Color,
+        big_text: bool,
+    ) -> Self {
         Self {
             words,
             text,
@@ -52,6 +59,7 @@ impl App {
             show_help: false,
             was_playing: None,
             words_since_resume: 0,
+            big_text,
         }
     }
 
@@ -91,6 +99,7 @@ impl App {
             highlight: self.highlight,
             scroll_offset: self.scroll_offset,
             show_help: self.show_help,
+            big_text: self.big_text,
         }
     }
 
@@ -159,6 +168,7 @@ impl App {
             KeyCode::Down => self.decrease_speed(),
             KeyCode::Char('r') => self.restart(),
             KeyCode::Char('v') => self.split_view = !self.split_view,
+            KeyCode::Char('b') => self.big_text = !self.big_text,
             KeyCode::Char('h') => {
                 self.was_playing = Some(self.playing);
                 self.playing = false;
@@ -282,6 +292,7 @@ mod tests {
             show_help: false,
             was_playing: None,
             words_since_resume: current,
+            big_text: false,
         }
     }
 

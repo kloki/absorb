@@ -37,6 +37,7 @@ pub fn help_popup() -> Paragraph<'static> {
             desc_style,
         ),
         binding("v", "Toggle split-view", key_style, desc_style),
+        binding("b", "Toggle big text", key_style, desc_style),
         binding("r", "Restart", key_style, desc_style),
         binding("q / Esc", "Quit", key_style, desc_style),
         binding("h", "Show this help", key_style, desc_style),
@@ -95,7 +96,7 @@ mod tests {
     #[test]
     fn help_popup_renders_without_panic() {
         use crate::display::tests::render_to_string;
-        let rendered = render_to_string(help_popup(), 60, 18);
+        let rendered = render_to_string(help_popup(), 60, 19);
         assert!(rendered.contains("Keybindings"));
         assert!(rendered.contains("SPACE"));
         assert!(rendered.contains("Press any key to close"));

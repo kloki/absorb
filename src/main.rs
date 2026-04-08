@@ -37,6 +37,10 @@ struct Cli {
     /// Highlight color
     #[arg(short, long, value_enum, default_value_t = HighlightColor::Red)]
     color: HighlightColor,
+
+    /// Display words in big text
+    #[arg(short, long, default_value_t = false)]
+    big_text: bool,
 }
 
 #[derive(Clone, ValueEnum)]
@@ -115,7 +119,7 @@ async fn main() -> io::Result<()> {
     let mut term = Terminal::new(CrosstermBackend::new(BufWriter::new(output)))?;
 
     let highlight: Color = cli.color.into();
-    let mut app = app::App::new(words, text, cli.wpm, highlight);
+    let mut app = app::App::new(words, text, cli.wpm, highlight, cli.big_text);
     let result = app.run(&mut term).await;
 
     disable_raw_mode()?;
