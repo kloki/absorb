@@ -10,7 +10,6 @@ use ratatui::{Terminal, backend::Backend, layout::Rect, style::Color};
 use crate::display::{self, DrawResult, ViewState, WordMap};
 
 const EASEIN_WORDS: usize = 10;
-const FREEZE: Duration = Duration::from_millis(400);
 
 enum Action {
     Continue,
@@ -24,7 +23,6 @@ pub struct App {
     playing: bool,
     target_wpm: u32,
     last_advance: Instant,
-    frozen_until: Instant,
     split_view: bool,
     highlight: Color,
     scroll_offset: Option<usize>,
@@ -38,15 +36,13 @@ pub struct App {
 
 impl App {
     pub fn new(words: Vec<String>, text: String, wpm: u32, highlight: Color) -> Self {
-        let now = Instant::now();
         Self {
             words,
             text,
             current: 0,
             playing: true,
             target_wpm: wpm,
-            last_advance: now + FREEZE,
-            frozen_until: now + FREEZE,
+            last_advance: Instant::now(),
             split_view: false,
             highlight,
             scroll_offset: None,
@@ -75,10 +71,7 @@ impl App {
     }
 
     fn tick_duration(&self) -> Duration {
-        let now = Instant::now();
-        if now < self.frozen_until {
-            self.frozen_until.duration_since(now)
-        } else if self.playing {
+        if self.playing {
             let tick = Duration::from_millis(60_000 / self.effective_wpm() as u64);
             tick.saturating_sub(self.last_advance.elapsed())
         } else {
@@ -121,7 +114,7 @@ impl App {
 
             tokio::select! {
                 _ = tick => {
-                    if self.playing && Instant::now() >= self.frozen_until {
+                    if self.playing {
                         self.advance();
                     }
                 }
@@ -260,12 +253,10 @@ impl App {
     }
 
     fn restart(&mut self) {
-        let now = Instant::now();
         self.current = 0;
         self.words_since_resume = 0;
         self.playing = true;
-        self.last_advance = now + FREEZE;
-        self.frozen_until = now + FREEZE;
+        self.last_advance = Instant::now();
     }
 }
 
@@ -282,7 +273,6 @@ mod tests {
             playing,
             target_wpm: wpm,
             last_advance: now,
-            frozen_until: now,
             split_view: false,
             highlight: Color::Red,
             scroll_offset: None,
@@ -352,15 +342,6 @@ mod tests {
         app.toggle_play();
         app.words_since_resume = EASEIN_WORDS;
         assert_eq!(app.effective_wpm(), 600);
-    }
-
-    #[test]
-    fn tick_duration_when_frozen() {
-        let mut app = test_app(600, 0, true);
-        app.frozen_until = Instant::now() + Duration::from_millis(500);
-        let d = app.tick_duration();
-        assert!(d > Duration::from_millis(400));
-        assert!(d <= Duration::from_millis(500));
     }
 
     #[test]
