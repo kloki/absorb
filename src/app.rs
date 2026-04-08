@@ -10,7 +10,7 @@ use ratatui::{Terminal, backend::Backend, layout::Rect, style::Color};
 use crate::display::{self, DrawResult, ViewState, WordMap};
 
 const EASEIN_WORDS: usize = 10;
-const FREEZE: Duration = Duration::from_secs(1);
+const FREEZE: Duration = Duration::from_millis(400);
 
 enum Action {
     Continue,
@@ -33,6 +33,7 @@ pub struct App {
     text_pane: Option<Rect>,
     show_help: bool,
     was_playing: Option<bool>,
+    words_since_resume: usize,
 }
 
 impl App {
@@ -54,17 +55,23 @@ impl App {
             text_pane: None,
             show_help: false,
             was_playing: None,
+            words_since_resume: 0,
         }
     }
 
-    fn effective_wpm(&self) -> u32 {
-        if self.current >= EASEIN_WORDS {
+    fn easein_wpm(&self, words: usize) -> u32 {
+        if words >= EASEIN_WORDS {
             return self.target_wpm;
         }
         let start = self.target_wpm / 3;
-        let progress = self.current as f64 / EASEIN_WORDS as f64;
+        let progress = words as f64 / EASEIN_WORDS as f64;
         let wpm = start as f64 + (self.target_wpm - start) as f64 * progress;
         (wpm as u32).max(50)
+    }
+
+    fn effective_wpm(&self) -> u32 {
+        self.easein_wpm(self.current)
+            .min(self.easein_wpm(self.words_since_resume))
     }
 
     fn tick_duration(&self) -> Duration {
@@ -80,6 +87,20 @@ impl App {
         }
     }
 
+    fn view_state(&self) -> ViewState<'_> {
+        ViewState {
+            words: &self.words,
+            text: &self.text,
+            current: self.current,
+            wpm: self.effective_wpm(),
+            playing: self.playing,
+            split_view: self.split_view,
+            highlight: self.highlight,
+            scroll_offset: self.scroll_offset,
+            show_help: self.show_help,
+        }
+    }
+
     pub async fn run<B: Backend<Error = io::Error>>(
         &mut self,
         term: &mut Terminal<B>,
@@ -87,17 +108,7 @@ impl App {
         let mut reader = EventStream::new();
 
         loop {
-            let state = ViewState {
-                words: &self.words,
-                text: &self.text,
-                current: self.current,
-                wpm: self.effective_wpm(),
-                playing: self.playing,
-                split_view: self.split_view,
-                highlight: self.highlight,
-                scroll_offset: self.scroll_offset,
-                show_help: self.show_help,
-            };
+            let state = self.view_state();
             let mut draw_result = DrawResult::default();
             term.draw(|f| {
                 draw_result = display::draw(f, &state);
@@ -125,69 +136,79 @@ impl App {
 
     fn handle_event(&mut self, event: Event) -> Action {
         match event {
-            Event::Key(key) => {
-                if key.kind != KeyEventKind::Press {
-                    return Action::Continue;
-                }
-                if self.show_help {
-                    self.show_help = false;
-                    if let Some(was) = self.was_playing.take() {
-                        self.playing = was;
-                        if self.playing {
-                            self.last_advance = Instant::now();
-                        }
-                    }
-                    return Action::Continue;
-                }
-                match key.code {
-                    KeyCode::Char('q') | KeyCode::Esc => return Action::Quit,
-                    KeyCode::Char(' ') => self.toggle_play(),
-                    KeyCode::Left => self.retreat(),
-                    KeyCode::Right => self.step_forward(),
-                    KeyCode::Up => self.increase_speed(),
-                    KeyCode::Down => self.decrease_speed(),
-                    KeyCode::Char('r') => self.restart(),
-                    KeyCode::Char('v') => self.split_view = !self.split_view,
-                    KeyCode::Char('h') => {
-                        self.was_playing = Some(self.playing);
-                        self.playing = false;
-                        self.show_help = true;
-                    }
-                    _ => {}
+            Event::Key(key) => self.handle_key(key),
+            Event::Mouse(mouse) => self.handle_mouse(mouse),
+            _ => Action::Continue,
+        }
+    }
+
+    fn handle_key(&mut self, key: crossterm::event::KeyEvent) -> Action {
+        if key.kind != KeyEventKind::Press {
+            return Action::Continue;
+        }
+        if self.show_help {
+            self.show_help = false;
+            if let Some(was) = self.was_playing.take() {
+                self.playing = was;
+                if self.playing {
+                    self.last_advance = Instant::now();
+                    self.words_since_resume = 0;
                 }
             }
-            Event::Mouse(mouse) if self.split_view => {
-                if let Some(pane) = self.text_pane {
-                    let in_pane = mouse.column >= pane.x
-                        && mouse.column < pane.x + pane.width
-                        && mouse.row >= pane.y
-                        && mouse.row < pane.y + pane.height;
+            return Action::Continue;
+        }
+        match key.code {
+            KeyCode::Char('q') | KeyCode::Esc => return Action::Quit,
+            KeyCode::Char(' ') => self.toggle_play(),
+            KeyCode::Left => self.retreat(),
+            KeyCode::Right => self.step_forward(),
+            KeyCode::Up => self.increase_speed(),
+            KeyCode::Down => self.decrease_speed(),
+            KeyCode::Char('r') => self.restart(),
+            KeyCode::Char('v') => self.split_view = !self.split_view,
+            KeyCode::Char('h') => {
+                self.was_playing = Some(self.playing);
+                self.playing = false;
+                self.show_help = true;
+            }
+            _ => {}
+        }
+        Action::Continue
+    }
 
-                    if in_pane {
-                        match mouse.kind {
-                            MouseEventKind::ScrollUp => {
-                                let offset = self.scroll_offset.unwrap_or(self.last_scroll);
-                                self.scroll_offset = Some(offset.saturating_sub(3));
-                            }
-                            MouseEventKind::ScrollDown => {
-                                let offset = self.scroll_offset.unwrap_or(self.last_scroll);
-                                self.scroll_offset = Some(offset + 3);
-                            }
-                            MouseEventKind::Down(MouseButton::Left) => {
-                                let rel_col = mouse.column - pane.x;
-                                let rel_row = mouse.row - pane.y;
-                                let scroll = self.scroll_offset.unwrap_or(self.last_scroll);
-                                let abs_line = scroll + rel_row as usize;
+    fn handle_mouse(&mut self, mouse: crossterm::event::MouseEvent) -> Action {
+        if !self.split_view {
+            return Action::Continue;
+        }
+        let Some(pane) = self.text_pane else {
+            return Action::Continue;
+        };
+        let in_pane = mouse.column >= pane.x
+            && mouse.column < pane.x + pane.width
+            && mouse.row >= pane.y
+            && mouse.row < pane.y + pane.height;
+        if !in_pane {
+            return Action::Continue;
+        }
+        match mouse.kind {
+            MouseEventKind::ScrollUp => {
+                let offset = self.scroll_offset.unwrap_or(self.last_scroll);
+                self.scroll_offset = Some(offset.saturating_sub(3));
+            }
+            MouseEventKind::ScrollDown => {
+                let offset = self.scroll_offset.unwrap_or(self.last_scroll);
+                self.scroll_offset = Some(offset + 3);
+            }
+            MouseEventKind::Down(MouseButton::Left) => {
+                let rel_col = mouse.column - pane.x;
+                let rel_row = mouse.row - pane.y;
+                let scroll = self.scroll_offset.unwrap_or(self.last_scroll);
+                let abs_line = scroll + rel_row as usize;
 
-                                if let Some(idx) = self.word_map.hit_test(abs_line, rel_col) {
-                                    self.current = idx;
-                                    self.playing = false;
-                                    self.scroll_offset = None;
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
+                if let Some(idx) = self.word_map.hit_test(abs_line, rel_col) {
+                    self.current = idx;
+                    self.playing = false;
+                    self.scroll_offset = None;
                 }
             }
             _ => {}
@@ -199,6 +220,7 @@ impl App {
         self.playing = !self.playing;
         if self.playing {
             self.last_advance = Instant::now();
+            self.words_since_resume = 0;
             if self.current >= self.words.len() {
                 self.current = 0;
             }
@@ -208,6 +230,7 @@ impl App {
     fn advance(&mut self) {
         if self.current < self.words.len() {
             self.current += 1;
+            self.words_since_resume += 1;
             self.last_advance = Instant::now();
             self.scroll_offset = None;
         }
@@ -239,6 +262,7 @@ impl App {
     fn restart(&mut self) {
         let now = Instant::now();
         self.current = 0;
+        self.words_since_resume = 0;
         self.playing = true;
         self.last_advance = now + FREEZE;
         self.frozen_until = now + FREEZE;
@@ -267,6 +291,7 @@ mod tests {
             text_pane: None,
             show_help: false,
             was_playing: None,
+            words_since_resume: current,
         }
     }
 
@@ -301,6 +326,32 @@ mod tests {
         // With very low target, start (target/3) could be below 50
         let app = test_app(90, 0, true);
         assert_eq!(app.effective_wpm(), 50);
+    }
+
+    #[test]
+    fn effective_wpm_easein_after_resume() {
+        let mut app = test_app(600, 15, false);
+        // Simulate pause then resume
+        app.toggle_play();
+        // words_since_resume is 0, so effective WPM should be target/3
+        assert_eq!(app.effective_wpm(), 200);
+    }
+
+    #[test]
+    fn effective_wpm_ramps_after_resume() {
+        let mut app = test_app(600, 15, false);
+        app.toggle_play();
+        app.words_since_resume = 5;
+        // Midway through resume ease-in: start=200, progress=0.5, wpm=400
+        assert_eq!(app.effective_wpm(), 400);
+    }
+
+    #[test]
+    fn effective_wpm_full_speed_after_resume_easein() {
+        let mut app = test_app(600, 15, false);
+        app.toggle_play();
+        app.words_since_resume = EASEIN_WORDS;
+        assert_eq!(app.effective_wpm(), 600);
     }
 
     #[test]
