@@ -84,7 +84,7 @@ pub fn draw(frame: &mut Frame, state: &ViewState) -> DrawResult {
     );
 
     if show_help {
-        let popup_area = help::centered_rect(60, 19, area);
+        let popup_area = help::centered_rect(60, 20, area);
         frame.render_widget(Clear, popup_area);
         frame.render_widget(help::help_popup(), popup_area);
     }

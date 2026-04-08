@@ -169,6 +169,7 @@ impl App {
             KeyCode::Char('r') => self.restart(),
             KeyCode::Char('v') => self.split_view = !self.split_view,
             KeyCode::Char('b') => self.big_text = !self.big_text,
+            KeyCode::Char('c') => self.cycle_color(),
             KeyCode::Char('h') => {
                 self.was_playing = Some(self.playing);
                 self.playing = false;
@@ -260,6 +261,23 @@ impl App {
 
     fn decrease_speed(&mut self) {
         self.target_wpm = (self.target_wpm.saturating_sub(25)).max(50);
+    }
+
+    fn cycle_color(&mut self) {
+        const COLORS: [Color; 7] = [
+            Color::Red,
+            Color::Green,
+            Color::Yellow,
+            Color::Blue,
+            Color::Magenta,
+            Color::Cyan,
+            Color::White,
+        ];
+        let pos = COLORS
+            .iter()
+            .position(|&c| c == self.highlight)
+            .unwrap_or(0);
+        self.highlight = COLORS[(pos + 1) % COLORS.len()];
     }
 
     fn restart(&mut self) {
