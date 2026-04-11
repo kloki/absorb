@@ -13,6 +13,9 @@ clap = { version = "4", features = ["derive"] }
 tokio = { version = "1", features = ["rt", "macros", "time"] }
 futures = "0.3"
 tui-big-text = "0.8"
+toml = "0.8"
+serde = { version = "1", features = ["derive"] }
+dirs = "6"
 
 [profile.dist]
 inherits = "release"

@@ -5,7 +5,7 @@ use std::{
     process,
 };
 
-use clap::{Parser, ValueEnum};
+use clap::{CommandFactory, FromArgMatches, Parser, ValueEnum};
 use ratatui::{
     Terminal,
     backend::CrosstermBackend,
@@ -19,6 +19,7 @@ use ratatui::{
 
 mod app;
 mod banners;
+mod config;
 mod display;
 
 #[derive(Parser)]
@@ -52,7 +53,7 @@ struct Cli {
 }
 
 #[derive(Clone, ValueEnum)]
-enum HighlightColor {
+pub(crate) enum HighlightColor {
     Black,
     Red,
     Green,
@@ -61,6 +62,22 @@ enum HighlightColor {
     Magenta,
     Cyan,
     White,
+}
+
+impl HighlightColor {
+    pub(crate) fn from_name(s: &str) -> Option<Self> {
+        match s.to_lowercase().as_str() {
+            "black" => Some(Self::Black),
+            "red" => Some(Self::Red),
+            "green" => Some(Self::Green),
+            "yellow" => Some(Self::Yellow),
+            "blue" => Some(Self::Blue),
+            "magenta" => Some(Self::Magenta),
+            "cyan" => Some(Self::Cyan),
+            "white" => Some(Self::White),
+            _ => None,
+        }
+    }
 }
 
 impl From<HighlightColor> for Color {
@@ -98,7 +115,9 @@ fn read_input(file: Option<PathBuf>) -> Option<String> {
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> io::Result<()> {
-    let cli = Cli::parse();
+    let matches = Cli::command().get_matches();
+    let mut cli = Cli::from_arg_matches(&matches).unwrap_or_else(|e| e.exit());
+    config::apply_config(&mut cli, &matches);
 
     let text = match read_input(cli.file) {
         Some(t) => t,
