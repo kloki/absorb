@@ -1,11 +1,9 @@
-use std::{
-    io,
-    time::{Duration, Instant},
-};
+use std::io;
 
 use crossterm::event::{Event, EventStream, KeyCode, KeyEventKind, MouseButton, MouseEventKind};
 use futures::StreamExt;
 use ratatui::{Terminal, backend::Backend, layout::Rect, style::Color};
+use tokio::time::{Duration, Instant, sleep};
 
 use crate::display::{self, DrawResult, ViewState, WordMap};
 
@@ -28,7 +26,6 @@ pub struct App {
     word_map: WordMap,
     text_pane: Option<Rect>,
     show_help: bool,
-    was_playing: Option<bool>,
     words_since_resume: usize,
     big_text: bool,
     easein_words: usize,
@@ -59,7 +56,6 @@ impl App {
             word_map: WordMap::default(),
             text_pane: None,
             show_help: false,
-            was_playing: None,
             words_since_resume: 0,
             big_text,
             easein_words,
@@ -83,7 +79,7 @@ impl App {
     }
 
     fn tick_duration(&self) -> Duration {
-        if self.playing {
+        if self.playing && !self.show_help {
             let base = Duration::from_millis(60_000 / self.effective_wpm() as u64);
             let tick = if self.sentence_pause > 0.0
                 && self.current < self.words.len()
@@ -131,10 +127,8 @@ impl App {
             self.text_pane = draw_result.text_pane;
             self.last_scroll = draw_result.scroll;
 
-            let tick = tokio::time::sleep(self.tick_duration());
-
             tokio::select! {
-                _ = tick => {
+                _ = sleep(self.tick_duration()) => {
                     if self.playing {
                         self.advance();
                     }
@@ -162,19 +156,15 @@ impl App {
         }
         if self.show_help {
             self.show_help = false;
-            if let Some(was) = self.was_playing.take() {
-                self.playing = was;
-                if self.playing {
-                    self.last_advance = Instant::now();
-                    self.words_since_resume = 0;
-                }
+            if self.playing {
+                self.reset_easein();
             }
             return Action::Continue;
         }
         match key.code {
             KeyCode::Char('q') | KeyCode::Esc => return Action::Quit,
             KeyCode::Char(' ') => self.toggle_play(),
-            KeyCode::Left => self.retreat(),
+            KeyCode::Left => self.step_backward(),
             KeyCode::Right => self.step_forward(),
             KeyCode::Up => self.increase_speed(),
             KeyCode::Down => self.decrease_speed(),
@@ -182,11 +172,7 @@ impl App {
             KeyCode::Char('v') => self.split_view = !self.split_view,
             KeyCode::Char('b') => self.big_text = !self.big_text,
             KeyCode::Char('c') => self.cycle_color(),
-            KeyCode::Char('h') => {
-                self.was_playing = Some(self.playing);
-                self.playing = false;
-                self.show_help = true;
-            }
+            KeyCode::Char('h') => self.show_help = true,
             _ => {}
         }
         Action::Continue
@@ -199,11 +185,7 @@ impl App {
         let Some(pane) = self.text_pane else {
             return Action::Continue;
         };
-        let in_pane = mouse.column >= pane.x
-            && mouse.column < pane.x + pane.width
-            && mouse.row >= pane.y
-            && mouse.row < pane.y + pane.height;
-        if !in_pane {
+        if !Self::mouse_in_pane(&mouse, &pane) {
             return Action::Continue;
         }
         match mouse.kind {
@@ -232,11 +214,22 @@ impl App {
         Action::Continue
     }
 
+    fn mouse_in_pane(mouse: &crossterm::event::MouseEvent, pane: &Rect) -> bool {
+        mouse.column >= pane.x
+            && mouse.column < pane.x + pane.width
+            && mouse.row >= pane.y
+            && mouse.row < pane.y + pane.height
+    }
+
+    fn reset_easein(&mut self) {
+        self.last_advance = Instant::now();
+        self.words_since_resume = 0;
+    }
+
     fn toggle_play(&mut self) {
         self.playing = !self.playing;
         if self.playing {
-            self.last_advance = Instant::now();
-            self.words_since_resume = 0;
+            self.reset_easein();
             if self.current >= self.words.len() {
                 self.current = 0;
             }
@@ -255,7 +248,7 @@ impl App {
         }
     }
 
-    fn retreat(&mut self) {
+    fn step_backward(&mut self) {
         self.playing = false;
         self.current = self.current.saturating_sub(1);
     }
@@ -294,9 +287,8 @@ impl App {
 
     fn restart(&mut self) {
         self.current = 0;
-        self.words_since_resume = 0;
         self.playing = true;
-        self.last_advance = Instant::now();
+        self.reset_easein();
     }
 }
 
@@ -320,7 +312,6 @@ mod tests {
             word_map: WordMap::default(),
             text_pane: None,
             show_help: false,
-            was_playing: None,
             words_since_resume: current,
             big_text: false,
             easein_words: 10,
