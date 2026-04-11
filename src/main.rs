@@ -22,13 +22,15 @@ mod banners;
 mod config;
 mod display;
 
-#[derive(Parser)]
+#[derive(Parser, serde::Deserialize)]
 #[command(
     name = "absorb",
     about = "Quickly absorb text using RSVP speed reading"
 )]
+#[serde(default)]
 struct Cli {
     /// File to read (reads from stdin if not provided)
+    #[serde(skip)]
     file: Option<PathBuf>,
 
     /// Words per minute
@@ -52,7 +54,8 @@ struct Cli {
     pause: f64,
 }
 
-#[derive(Clone, ValueEnum)]
+#[derive(Clone, ValueEnum, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub(crate) enum HighlightColor {
     Black,
     Red,
@@ -64,18 +67,15 @@ pub(crate) enum HighlightColor {
     White,
 }
 
-impl HighlightColor {
-    pub(crate) fn from_name(s: &str) -> Option<Self> {
-        match s.to_lowercase().as_str() {
-            "black" => Some(Self::Black),
-            "red" => Some(Self::Red),
-            "green" => Some(Self::Green),
-            "yellow" => Some(Self::Yellow),
-            "blue" => Some(Self::Blue),
-            "magenta" => Some(Self::Magenta),
-            "cyan" => Some(Self::Cyan),
-            "white" => Some(Self::White),
-            _ => None,
+impl Default for Cli {
+    fn default() -> Self {
+        Self {
+            file: None,
+            wpm: 600,
+            color: HighlightColor::Red,
+            big_text: false,
+            ramp: 10,
+            pause: 2.0,
         }
     }
 }
