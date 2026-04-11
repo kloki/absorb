@@ -32,6 +32,7 @@ pub struct App {
     words_since_resume: usize,
     big_text: bool,
     easein_words: usize,
+    sentence_pause: f64,
 }
 
 impl App {
@@ -42,6 +43,7 @@ impl App {
         highlight: Color,
         big_text: bool,
         easein_words: usize,
+        sentence_pause: f64,
     ) -> Self {
         Self {
             words,
@@ -61,6 +63,7 @@ impl App {
             words_since_resume: 0,
             big_text,
             easein_words,
+            sentence_pause,
         }
     }
 
@@ -81,7 +84,15 @@ impl App {
 
     fn tick_duration(&self) -> Duration {
         if self.playing {
-            let tick = Duration::from_millis(60_000 / self.effective_wpm() as u64);
+            let base = Duration::from_millis(60_000 / self.effective_wpm() as u64);
+            let tick = if self.sentence_pause > 0.0
+                && self.current < self.words.len()
+                && self.words[self.current].ends_with('.')
+            {
+                base.mul_f64(self.sentence_pause)
+            } else {
+                base
+            };
             tick.saturating_sub(self.last_advance.elapsed())
         } else {
             // Effectively infinite: when paused, only input from select! wakes the loop
@@ -313,6 +324,7 @@ mod tests {
             words_since_resume: current,
             big_text: false,
             easein_words: 10,
+            sentence_pause: 0.0,
         }
     }
 
@@ -386,6 +398,28 @@ mod tests {
     fn tick_duration_when_playing() {
         let app = test_app(600, 10, true);
         // 600 WPM = 100ms per word, last_advance is now so remaining ≈ 100ms
+        let d = app.tick_duration();
+        assert!(d > Duration::from_millis(90));
+        assert!(d <= Duration::from_millis(100));
+    }
+
+    #[test]
+    fn tick_duration_sentence_pause() {
+        let mut app = test_app(600, 10, true);
+        app.words[10] = "end.".into();
+        app.sentence_pause = 2.0;
+        // 600 WPM = 100ms base, on "end." should be ~200ms
+        let d = app.tick_duration();
+        assert!(d > Duration::from_millis(180));
+        assert!(d <= Duration::from_millis(200));
+    }
+
+    #[test]
+    fn tick_duration_no_sentence_pause() {
+        let mut app = test_app(600, 10, true);
+        app.words[10] = "end.".into();
+        app.sentence_pause = 0.0;
+        // Disabled: should be normal ~100ms
         let d = app.tick_duration();
         assert!(d > Duration::from_millis(90));
         assert!(d <= Duration::from_millis(100));

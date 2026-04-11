@@ -45,6 +45,10 @@ struct Cli {
     /// Number of words to ramp up speed over (0 to disable)
     #[arg(short, long, default_value_t = 10, value_parser = clap::value_parser!(u32).range(0..=100))]
     ramp: u32,
+
+    /// Pause multiplier after sentences ending with '.' (0 to disable)
+    #[arg(short, long, default_value_t = 2.0)]
+    pause: f64,
 }
 
 #[derive(Clone, ValueEnum)]
@@ -130,6 +134,7 @@ async fn main() -> io::Result<()> {
         highlight,
         cli.big_text,
         cli.ramp as usize,
+        cli.pause,
     );
     let result = app.run(&mut term).await;
 
