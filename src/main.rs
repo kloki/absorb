@@ -41,6 +41,10 @@ struct Cli {
     /// Display words in big text
     #[arg(short, long, default_value_t = false)]
     big_text: bool,
+
+    /// Number of words to ramp up speed over (0 to disable)
+    #[arg(short, long, default_value_t = 10, value_parser = clap::value_parser!(u32).range(0..=100))]
+    ramp: u32,
 }
 
 #[derive(Clone, ValueEnum)]
@@ -119,7 +123,14 @@ async fn main() -> io::Result<()> {
     let mut term = Terminal::new(CrosstermBackend::new(BufWriter::new(output)))?;
 
     let highlight: Color = cli.color.into();
-    let mut app = app::App::new(words, text, cli.wpm, highlight, cli.big_text);
+    let mut app = app::App::new(
+        words,
+        text,
+        cli.wpm,
+        highlight,
+        cli.big_text,
+        cli.ramp as usize,
+    );
     let result = app.run(&mut term).await;
 
     disable_raw_mode()?;

@@ -9,8 +9,6 @@ use ratatui::{Terminal, backend::Backend, layout::Rect, style::Color};
 
 use crate::display::{self, DrawResult, ViewState, WordMap};
 
-const EASEIN_WORDS: usize = 10;
-
 enum Action {
     Continue,
     Quit,
@@ -33,6 +31,7 @@ pub struct App {
     was_playing: Option<bool>,
     words_since_resume: usize,
     big_text: bool,
+    easein_words: usize,
 }
 
 impl App {
@@ -42,6 +41,7 @@ impl App {
         wpm: u32,
         highlight: Color,
         big_text: bool,
+        easein_words: usize,
     ) -> Self {
         Self {
             words,
@@ -60,15 +60,16 @@ impl App {
             was_playing: None,
             words_since_resume: 0,
             big_text,
+            easein_words,
         }
     }
 
     fn easein_wpm(&self, words: usize) -> u32 {
-        if words >= EASEIN_WORDS {
+        if self.easein_words == 0 || words >= self.easein_words {
             return self.target_wpm;
         }
         let start = self.target_wpm / 3;
-        let progress = words as f64 / EASEIN_WORDS as f64;
+        let progress = words as f64 / self.easein_words as f64;
         let wpm = start as f64 + (self.target_wpm - start) as f64 * progress;
         (wpm as u32).max(50)
     }
@@ -311,6 +312,7 @@ mod tests {
             was_playing: None,
             words_since_resume: current,
             big_text: false,
+            easein_words: 10,
         }
     }
 
@@ -330,7 +332,7 @@ mod tests {
 
     #[test]
     fn effective_wpm_at_easein_boundary() {
-        let app = test_app(600, EASEIN_WORDS, true);
+        let app = test_app(600, 10, true);
         assert_eq!(app.effective_wpm(), 600);
     }
 
@@ -369,13 +371,20 @@ mod tests {
     fn effective_wpm_full_speed_after_resume_easein() {
         let mut app = test_app(600, 15, false);
         app.toggle_play();
-        app.words_since_resume = EASEIN_WORDS;
+        app.words_since_resume = 10;
+        assert_eq!(app.effective_wpm(), 600);
+    }
+
+    #[test]
+    fn effective_wpm_no_ramp() {
+        let mut app = test_app(600, 0, true);
+        app.easein_words = 0;
         assert_eq!(app.effective_wpm(), 600);
     }
 
     #[test]
     fn tick_duration_when_playing() {
-        let app = test_app(600, EASEIN_WORDS, true);
+        let app = test_app(600, 10, true);
         // 600 WPM = 100ms per word, last_advance is now so remaining ≈ 100ms
         let d = app.tick_duration();
         assert!(d > Duration::from_millis(90));
